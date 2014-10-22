@@ -1,0 +1,316 @@
+
+elements = {}
+Lenses = []
+
+logging = (a, b...) ->
+	console.log(a,b)
+
+class Point
+	constructor: (@x, @y, @z) ->
+
+CanvasRange = 
+	x : 1024,
+	y : 768,
+	z : 1024
+
+PointOrigin = new Point 0,1000,0
+NormalMatrix = $M([
+	[1, 0, 0, PointOrigin.x],
+	[0, -1 ,0, PointOrigin.y],
+	[0, 0, -1, PointOrigin.z],
+	[0, 0, 0, 1]
+])
+
+
+Vector.prototype.homoToUnit3D = () ->
+	this.add($V([0,0,0,-1])).toUnitVector().add($V([0,0,0,1]))
+
+class Rectangle
+	constructor: (@PointLT,@PointRB) ->
+
+class Lens
+	constructor: (@PointCenter, @VectorDirection) ->
+		@VectorDirection = @VectorDirection.toUnitVector()
+
+class Aperture
+	constructor: (@PointCenter, @VectorDirection, @VectorX, @Passing) ->
+		@VectorDirection = @VectorDirection.toUnitVector()
+		@VectorX = @VectorX.toUnitVector()
+		@Type = "Aperture"
+
+class HRPlane
+	constructor: (@PointCenter, @VectorDirection) ->
+		@VectorDirection = @VectorDirection.toUnitVector()
+		@Type = "HRPlane"
+
+class HTPlane
+	constructor: (@PointCenter, @VectorDirection, @n2) ->
+		@VectorDirection = @VectorDirection.toUnitVector()
+		@Type= "HTPlane"
+
+class LightRay
+	constructor: (@PointStart, @VectorDirection, @Name) ->
+		@Intensity = 1
+		@VectorDirection=@VectorDirection.toUnitVector()
+
+class NormalCoordinate
+	constructor: (@PointOrigin) ->
+
+class CornerReflector
+	constructor: (@PointCenter,@VectorDirection,@VectorSurface,@a,@n) ->
+		@VectorDirection=@VectorDirection.toUnitVector()
+		@VectorSurface=@VectorSurface.toUnitVector()
+		@Type="CornerReflector"
+		@HT = new HTPlane @PointCenter.add(@VectorDirection.multiply(Math.sqrt(1/3)*@a)), @VectorDirection, @n
+		@HRs=[]
+		@HRs.push new HRPlane  @PointCenter,@VectorSurface
+		logging _VectorAuxiliary=@VectorSurface.subtract(@VectorDirection.multiply(Math.sqrt(1/3)))
+		_VectorHR1=_VectorAuxiliary.rotate(Math.PI/3*2,$L([0,0,0],@VectorDirection)).add(@VectorDirection.multiply(Math.sqrt(1/3)))
+		_VectorHR2=_VectorAuxiliary.rotate(-Math.PI/3*2,$L([0,0,0],@VectorDirection)).add(@VectorDirection.multiply(Math.sqrt(1/3)))
+		@HRs.push new HRPlane @PointCenter, _VectorHR1
+		@HRs.push new HRPlane @PointCenter, _VectorHR2
+
+createPoint = (pos, name, fathers, parameters) ->
+	if (elements[name]?)
+		console.log "duplicated"
+		return -1
+	elements[name] = {"type": "point", "name": name, "x": pos[0], "y": pos[1],"fathers": fathers,"children": [], "parameters": parameters}
+	for father in fathers
+		do (father) =>
+			if elements[father]?
+				elements[father]["children"].push name
+			else 
+				alert "cannot find element:" + father
+
+	drawPoint name
+
+drawPoint = (name) ->
+	obj = elements[name]
+	pt = null
+	if $("#" + name).length == 0
+		generateStr = """<svg id="#{obj.name}" class="svgPoint" >
+			<rect x="0" y="0" width="1" height="1" class="rectPoint" />
+			</svg>"""
+		pt = $(generateStr).appendTo $("body")[0]
+	else
+		pt = $("#" + name)
+	pt.css "left", obj["x"]()
+	pt.css "top", obj["y"]()
+	for child in obj["children"]
+		do (child) =>
+			if elements[child]["type"] == "point" then drawPoint child
+			else if elements[child]['type'] == "line" then drawLine child
+
+createLine = (start, end, name, parameters={}) ->
+	if (elements[name]?)
+		alert "line name duplicated"
+		return -1
+	elements[name] = {"type": "line", "name": name, "start": start, "end": end, "fathers": [start, end], "parameters": parameters }
+	for father in elements[name]["fathers"]
+		do (father) =>
+			if elements[father]?
+				elements[father]["children"].push name
+			else 
+				alert "cannot find element:" + father
+	drawLine name
+
+# drawLine = (lightRay) ->
+# 	obj = lightRay
+# 	line = null
+# 	st = lightRay.PointStart
+# 	ed = lightRay.PointEnd
+# 	if $("#" + obj.Name).length == 0
+# 		generateStr = """<svg id="#{obj.Name}" class="svgLine" >
+# 			<line x1="0" y1="0" x2="100%" y2="0" class ="line" />
+# 			</svg>"""
+# 		line = $(generateStr).appendTo $("body")[0]
+# 	else
+# 		line = $("#" + name)
+# 	line.css "left", st['x']
+# 	line.css "top", st['y']
+# 	line.css "width", (getDistance st, ed)
+# 	line.css "-webkit-transform", "rotate(#{ getAngle st, ed }deg)"
+
+getDistance = (point1, point2) ->
+	Math.sqrt (Math.pow (point2.x - point1.x), 2) + (Math.pow (point2.y - point1.y), 2)
+
+getAngle = (point1, point2) ->
+	temp = Math.atan2 (point2.y - point1.y) , (point2.x - point1.x)
+	return temp/Math.PI*180
+
+FindCrossPoint = (ray, lense) ->
+	console.log "Start finding the crossing point!"
+	switch lense.Type
+		when "Aperture"
+			console.log "Aperture!"
+			if ray.VectorDirection.dot(lense.VectorDirection) == 0
+				return null
+			else
+				return ray.PointStart.subtract(ray.VectorDirection.multiply(lense.VectorDirection.dot(ray.PointStart.subtract(lense.PointCenter))/lense.VectorDirection.dot(ray.VectorDirection)))
+		when "HRPlane","HTPlane"
+			console.log "HRPlane or HTPlane!"
+			if ray.VectorDirection.dot(lense.VectorDirection) == 0
+				logging "the lightRay is parallel to the HRPlane"
+				return null
+			else if (ray.PointStart.subtract(lense.PointCenter)).dot(lense.VectorDirection) == 0
+				logging "the start point of the lightray is already on the plane!"
+				return ray.PointStart
+			else
+				logging "normal case"
+				return ray.PointStart.subtract(ray.VectorDirection.multiply(lense.VectorDirection.dot(ray.PointStart.subtract(lense.PointCenter))/lense.VectorDirection.dot(ray.VectorDirection)))
+
+Propagate = (ray ,lense) ->
+	logging "Start calculating for the derived lightray"
+	switch lense.Type
+		when "HRPlane"
+			logging "HRPlane"
+			_crossPoint=FindCrossPoint ray, lense
+			if _crossPoint == null
+				logging "No intersect..."
+				return [ray]
+			else
+				logging "Seems there is a crossing point...As it is a HRPlane, only one new light ray will be generated"
+				_newDirection = lense.VectorDirection.multiply(-2*ray.VectorDirection.dot(lense.VectorDirection)).add(ray.VectorDirection)
+				return new LightRay _crossPoint, _newDirection, ray.Name+"+"
+		when "HTPlane"
+			logging "HTPlane"
+			_crossPoint=FindCrossPoint ray, lense
+			if _crossPoint == null
+				logging "No intersect..."
+				return [ray]
+			else
+				logging "Seems there is a crossing point...As it is a HTPlane, only one new light ray will be generated"
+				_incidentAngle=lense.VectorDirection.angleFrom(ray.VectorDirection)
+				logging _incidentAngle
+				if _incidentAngle > Math.PI/2
+					_direction = true
+					_incidentAngle = Math.PI - _incidentAngle
+				else
+					_direction = false
+				logging _direction
+				_n = if _direction then lense.n2 else 1 / lense.n2
+				if Math.sin(_incidentAngle) / _n > 1
+					logging "Full internal reflection detected, not to be solved until next version"
+					return null
+				else
+					_propagateAngle=Math.asin(Math.sin(_incidentAngle)/_n)
+					if _propagateAngle > 0
+						_VectorPropagateT = ray.VectorDirection.add(lense.VectorDirection.multiply(-lense.VectorDirection.dot(ray.VectorDirection)))
+						_VectorPropagateS = lense.VectorDirection.multiply((if _direction then -1 else 1)*_VectorPropagateT.modulus()/Math.tan(_propagateAngle))
+						_VectorPropagate = _VectorPropagateT.add(_VectorPropagateS)
+					else
+						_VectorPropagate = ray.VectorDirection
+					return new LightRay _crossPoint, _VectorPropagate, ray.Name+"#"
+		when "CornerReflector"
+			logging "CornerReflector...WTF"
+			_crossPoint=FindCrossPoint ray, lense.HT
+			if _crossPoint == null
+				logging "No intersection, Hmmm..."
+				return [ray]
+			else
+				logging "Seems the lightray enters the CR, now Trying to find the HR plane it will intersect with"
+				_ray = Propagate ray, lense.HT
+				done = false
+				_planeGroup=lense.HRs
+				#logging _planeGroup
+				_planeGroup.push lense.HT
+				#logging _planeGroup
+				_count = 0 
+				while not done and _count < 4
+					_count=_count + 1
+					_distance=[]
+					for plane in _planeGroup
+						logging plane,_ray
+						_intersectPoint = FindCrossPoint _ray, plane
+						logging _intersectPoint
+						_distanceAlong = _intersectPoint.subtract(_ray.PointStart).dot(_ray.VectorDirection)
+						console.log _distanceAlong
+						_distance.push if _distanceAlong > -Sylvester.precision then _distanceAlong else Infinity
+					logging _distance
+					_2ndMin = Find2ndMin(_distance)
+					_distanceSliced=_distance.slice(0)
+					while Math.abs(_2ndMin) < Sylvester.precision
+						logging "the second smallest distance is zero, that's not we wanted"
+						_distanceSliced=_distanceSliced.sort().slice(1)
+						_2ndMin = Find2ndMin(_distanceSliced)
+					logging _2ndMin
+					[_duplicateNumber,_duplicateIndex] = FindSame(_distance,_2ndMin,1e-9) # Special case: incident to the cross line or point of the planes
+					if _duplicateNumber == 1
+						_next = _distance.indexOf _2ndMin # the first must be zero as the lightray is generated from one of the four planes 
+						logging _next
+						if _planeGroup[_next].Type == "HTPlane"
+							logging "The lightray is about to leave the CR...I Hope..."
+							done = true
+						else 
+							logging "The lightray is still in the CR...Hmmm..."
+							_ray = Propagate _ray, _planeGroup[_next]
+					else if 1 <_duplicateNumber <= 3
+						logging "_duplicateNumber > 1,which is "+_duplicateNumber
+						for _index in _duplicateIndex
+							if _index==3
+								logging "..., seems the lightray is about to leave the CR from a edge ..."
+								done = true
+							else
+								_ray = Propagate _ray,_planeGroup[_index]
+					else 
+						logging "strange duplicate number, T-T",_duplicateNumber
+					
+				return Propagate _ray, lense.HT
+
+
+ResolveLightRay = (ray) ->
+	crossPoints = []
+	for lense in Lenses
+		crossPoints.push FindCrossPoint ray, lense
+
+class Plane
+	constructor:(@name,@VectorDirection,@PointPassing) ->
+
+r=null
+
+Find2ndMin = (arr) ->
+	_1=arr[0]
+	_2=Infinity
+	for val in arr.slice(1)
+		if _1<val<_2
+			_2=val
+		else if val<=_1
+			_2=_1
+			_1=val 
+	return _2
+
+FindSame = (arr,element,err) ->
+	_count=0
+	_index=[]
+	for e,k in arr
+		if Math.abs(e-element) < err
+			_count=_count+1
+			_index.push k
+	return [_count,_index]
+$ =>
+	Sylvester.precision=1e-9
+	window.test1 = new LightRay ($V [0, 0, 0]),  ($V [1, 1, 0]), "LRtest1"
+	window.aperture1 = new Aperture ($V [100, 0, 0]), ($V [-1, 0, 0]), ($V [0, 0, 1]), ((x, y) ->
+		if x*x+y*y > 20*20 then false else true)
+
+	Lenses.push aperture1
+
+	HRPlane1=new HRPlane $V([1,1,0]),$V([-1,-1,0])
+	HTPlane1=new HTPlane $V([1,1,0]),$V([1,1,0]),1.5
+	LightRay1 = new LightRay  ($V [0, 0, 0]),  ($V [1, 1, 1]), "LRtest2"
+	# logging FindCrossPoint(LightRay1,HRPlane1)
+	# logging Propagate(LightRay1,HRPlane1)
+	# logging Propagate(LightRay1,HTPlane1)
+	r= new CornerReflector $V([0,0,0]), $V([1,1,1]),$V([1,0,0]),1,1.5
+	LightRay2 = new LightRay $V([0,0,0]), $V([-1,-1,-1]), "LRtestCR"
+	#logging Propagate(LightRay2,r)
+	#drawLine test1
+
+	LightRay3 = new LightRay $V([0,0,0]), $V([1,0,0]), "LRbottom"
+	HR1 = new HRPlane $V([5,0,0]),$V([-1,0,-1])
+	HR2 = new HRPlane $V([5,0,-5]),$V([1,0,1])
+	logging CR1 = new CornerReflector $V([10,0,-5.5]), $V([-1,0,0]),$V([-1,0,Math.sqrt(2)]),2,1.5
+	logging LR4=Propagate(LightRay3,HR1)
+	logging LR5=Propagate(LR4,HR2)
+	logging LR6=Propagate(LR5,CR1)
+	logging LR7=Propagate(LR6,HR2)

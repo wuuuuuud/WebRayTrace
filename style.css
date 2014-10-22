@@ -1,0 +1,57 @@
+.argument
+{
+	border: solid 1px yellow;
+	background-color: lightyellow;
+	position:absolute;
+	width:140px;
+	
+	font-family: 微软雅黑,consolas;
+	color: #111111;
+
+}
+
+.indicatorArrow
+{
+	position:absolute;
+	border:0px;
+	height:12px;
+	z-index: -5;
+	-webkit-transform-origin: 0 50%;
+}
+
+.connectLine
+{
+	stroke-width:1px;
+
+}
+
+.interface
+{
+	position:absolute;
+	width:220px;
+	font-family: 微软雅黑;
+	display: none;
+}
+
+.svgPoint
+{
+	position:absolute;
+	border:0px;
+	height:1px;
+	width:1px;
+	
+}
+
+.svgLine
+{
+	position:absolute;
+	-webkit-transform-origin: 0 50%;
+	height:1px;
+	
+}
+
+.line
+{
+	stroke-width: 2px;
+	stroke:black	;
+} 
