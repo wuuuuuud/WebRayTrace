@@ -445,7 +445,7 @@ FindSame = function(arr, element, err) {
 };
 
 $(function() {
-  var CR1, HR1, HR2, HRPlane1, HTPlane1, LR4, LR5, LR6, LR7, LightRay1, LightRay2, LightRay3;
+  var CR1, HR1, HR2, HRPlane1, HTPlane1, LenseSequence, LightRay1, LightRay2, LightRay3, Ray, RayHistory, lense, _i, _len, _results;
   Sylvester.precision = 1e-9;
   window.test1 = new LightRay($V([0, 0, 0]), $V([1, 1, 0]), "LRtest1");
   window.aperture1 = new Aperture($V([100, 0, 0]), $V([-1, 0, 0]), $V([0, 0, 1]), (function(x, y) {
@@ -464,11 +464,17 @@ $(function() {
   LightRay3 = new LightRay($V([0, 0, 0]), $V([1, 0, 0]), "LRbottom");
   HR1 = new HRPlane($V([5, 0, 0]), $V([-1, 0, -1]));
   HR2 = new HRPlane($V([5, 0, -5]), $V([1, 0, 1]));
-  logging(CR1 = new CornerReflector($V([10, 0, -5.5]), $V([-1, 0, 0]), $V([-1, 0, Math.sqrt(2)]), 2, 1.5));
-  logging(LR4 = Propagate(LightRay3, HR1));
-  logging(LR5 = Propagate(LR4, HR2));
-  logging(LR6 = Propagate(LR5, CR1));
-  return logging(LR7 = Propagate(LR6, HR2));
+  logging(CR1 = new CornerReflector($V([10, 0.5, -5.6]), $V([-1, 0, 0]), $V([-1, 0, Math.sqrt(2)]), 2, 1.5));
+  LenseSequence = [HR1, HR2, CR1, HR2];
+  RayHistory = [];
+  Ray = LightRay3;
+  _results = [];
+  for (_i = 0, _len = LenseSequence.length; _i < _len; _i++) {
+    lense = LenseSequence[_i];
+    RayHistory.push(Ray);
+    _results.push(Ray = Propagate(Ray, lense));
+  }
+  return _results;
 });
 
 /*

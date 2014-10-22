@@ -309,8 +309,15 @@ $ =>
 	LightRay3 = new LightRay $V([0,0,0]), $V([1,0,0]), "LRbottom"
 	HR1 = new HRPlane $V([5,0,0]),$V([-1,0,-1])
 	HR2 = new HRPlane $V([5,0,-5]),$V([1,0,1])
-	logging CR1 = new CornerReflector $V([10,0,-5.5]), $V([-1,0,0]),$V([-1,0,Math.sqrt(2)]),2,1.5
-	logging LR4=Propagate(LightRay3,HR1)
-	logging LR5=Propagate(LR4,HR2)
-	logging LR6=Propagate(LR5,CR1)
-	logging LR7=Propagate(LR6,HR2)
+	logging CR1 = new CornerReflector $V([10,0.5,-5.6]), $V([-1,0,0]),$V([-1,0,Math.sqrt(2)]),2,1.5
+	LenseSequence = [HR1,HR2,CR1,HR2]
+	RayHistory =[]
+	Ray=LightRay3
+	for lense in LenseSequence
+		RayHistory.push Ray
+		Ray = Propagate Ray, lense
+	
+	# logging LR4=Propagate(LightRay3,HR1)
+	# logging LR5=Propagate(LR4,HR2)
+	# logging LR6=Propagate(LR5,CR1)
+	# logging LR7=Propagate(LR6,HR2)
