@@ -154,6 +154,25 @@ CornerReflector = (function() {
     this.HRs.push(new HRPlane(this.PointCenter, _VectorHR2));
   }
 
+  CornerReflector.prototype.selfRotate = function(angle, axis) {
+    var _ret;
+    _ret = new CornerReflector(this.PointCenter, this.VectorDirection.rotate(angle, $L([0, 0, 0], axis)), this.VectorSurface.rotate(angle, $L([0, 0, 0], axis)), this.a, this.n);
+    return _ret;
+  };
+
+  CornerReflector.prototype.move = function(vector) {
+    var _ret;
+    _ret = new CornerReflector(this.PointCenter.add(vector), this.VectorDirection, this.VectorSurface, this.a, this.n);
+    return _ret;
+  };
+
+  CornerReflector.prototype.rotate = function(angle, line) {
+    var _axis, _ret;
+    _axis = line.direction;
+    _ret = new CornerReflector(this.PointCenter.rotate(angle, line), this.VectorDirection.rotate(angle, $L([0, 0, 0], _axis)), this.VectorSurface.rotate(angle, $L([0, 0, 0], _axis)), this.a, this.n);
+    return _ret;
+  };
+
   return CornerReflector;
 
 })();
@@ -395,6 +414,7 @@ Propagate = function(ray, lense) {
               } else {
                 _ray_origin = _ray;
                 _ray = Propagate(_ray, _planeGroup[_index]);
+                leveledLogging(0, _ray.PointStart.subtract(_ray_origin.PointStart).modulus());
                 _opticalDistance = _opticalDistance + _ray.PointStart.subtract(_ray_origin.PointStart).modulus() * lense.n;
               }
             }
@@ -402,7 +422,10 @@ Propagate = function(ray, lense) {
             logging("strange duplicate number, T-T", _duplicateNumber);
           }
         }
-        return [Propagate(_ray, lense.HT), _opticalDistance];
+        _ray_origin = _ray;
+        _ray = Propagate(_ray, lense.HT);
+        _opticalDistance += _ray.PointStart.subtract(_ray_origin.PointStart).modulus() * lense.n;
+        return [_ray, _opticalDistance];
       }
   }
 };
@@ -484,7 +507,7 @@ PropagateSystem = function(ray, lightSystem) {
 };
 
 $(function() {
-  var CR1, CR2, CR3, CR4, HR1, HR2, HR3, HR4, HRPlane1, HTPlane1, LightRay1, LightRay2, LightRay3, Ray, result;
+  var CR1, CR2, CR3, CR4, CRtest, HR1, HR2, HR3, HR4, HR5, HR6, HRPlane1, HTPlane1, LightRay1, LightRay2, LightRay3, Ray, index1, index2, results;
   Sylvester.precision = 1e-9;
   window.test1 = new LightRay($V([0, 0, 0]), $V([1, 1, 0]), "LRtest1");
   window.aperture1 = new Aperture($V([100, 0, 0]), $V([-1, 0, 0]), $V([0, 0, 1]), (function(x, y) {
@@ -502,7 +525,7 @@ $(function() {
   LightRay2 = new LightRay($V([0, 0, 0]), $V([-1, -1, -1]), "LRtestCR");
   LightRay3 = new LightRay($V([0, 0, 0]), $V([1, 0, 0]), "LRbottom");
   HR1 = new HRPlane($V([5, 0, 0]), $V([-1, 0, -1]));
-  HR2 = new HRPlane($V([5, 0, -5]), $V([1, 0, 1]));
+  HR2 = new HRPlane($V([5, 0, -5]), $V([1 + 2e-3, 0, 1]));
   HR3 = new HRPlane($V([5, 0, 5]), $V([0, 0, -1]));
   logging(CR1 = new CornerReflector($V([10, 0.5, -5.6]), $V([-1, 0, 0]), $V([-1, 0, Math.sqrt(2)]), 2, 1.5));
   window.LenseSequence = [HR1, HR2, CR1, HR2, HR3];
@@ -510,21 +533,29 @@ $(function() {
   window.OpticalDistance = 0;
   Ray = LightRay3;
   LOG_LEVEL = 0;
-  result = PropagateSystem(LightRay3, LenseSequence);
-  LOG_LEVEL = 1;
-  logging(result);
+  results = [];
+  results.push(PropagateSystem(LightRay3, LenseSequence));
+  LOG_LEVEL = 0;
+  CR4 = CR1.move($V([15, 0, 0])).rotate(50e-6, $L([25, 0, -5.6], [0, 1, 0]));
+  results.push(PropagateSystem(LightRay3, [HR1, HR2, CR4, HR2, HR3]));
   HR4 = new HRPlane($V([5, 0, 0]), $V([1, 0, 1]));
-  CR2 = new CornerReflector($V([10, 0.5, -0.6]), $V([-1, 0, 0]).rotate(1e-3, $L([0, 0, 0], [0, 1, 0])), $V([-1, 0, Math.sqrt(2)]).rotate(1e-3, $L([0, 0, 0], [0, 1, 0])), 2, 1.5);
+  CR2 = CR1.move($V([0, 0, 5])).selfRotate(0e-3, $V([0, 1, 0]));
   window.LenseSequence2 = [CR2, HR4, HR3];
   LOG_LEVEL = 0;
-  result = PropagateSystem(LightRay3, LenseSequence2);
-  LOG_LEVEL = 1;
-  logging(result);
+  results.push(PropagateSystem(LightRay3, LenseSequence2));
   LOG_LEVEL = 0;
-  CR3 = new CornerReflector($V([15, 0.5, -0.6]).rotate(50e-6, $L([15, 0, -5.6], [0, 1, 0])), $V([-1, 0, 0]).rotate(1e-3 + 50e-6, $L([0, 0, 0], [0, 1, 0])), $V([-1, 0, Math.sqrt(2)]).rotate(1e-3 + 50e-6, $L([0, 0, 0], [0, 1, 0])), 2, 1.5);
-  leveledLogging(0, PropagateSystem(LightRay3, [CR3, HR4, HR3]));
-  CR4 = new CornerReflector($V([15, 0.5, -5.6]).rotate(50e-6, $L([15, 0, -5.6], [0, 1, 0])), $V([-1, 0, 0]).rotate(50e-6, $L([0, 0, 0], [0, 1, 0])), $V([-1, 0, Math.sqrt(2)]).rotate(50e-6, $L([0, 0, 0], [0, 1, 0])), 2, 1.5);
-  return leveledLogging(0, PropagateSystem(LightRay3, [HR1, HR2, CR4, HR2, HR3]));
+  LOG_LEVEL = 0;
+  CR3 = CR2.move($V([15, 0, 0])).rotate(50e-6, $L([25, 0, -5.6], [0, 1, 0]));
+  results.push(PropagateSystem(LightRay3, [CR3, HR4, HR3]));
+  leveledLogging(0, results);
+  leveledLogging(0, results[3][1] - results[2][1] - results[1][1] + results[0][1]);
+  HR5 = new HRPlane($V([10, 0, -5]), $V([-1, 0, 0]));
+  HR6 = new HRPlane($V([5, 0, -5]), $V([1 + 1e-6, 0, 1]));
+  index1 = results.push(PropagateSystem(LightRay3, [HR1, HR2, HR5, HR2, HR3]));
+  index2 = results.push(PropagateSystem(LightRay3, [HR1, HR6, HR5, HR6, HR3]));
+  leveledLogging(0, results[index1 - 1][1] - results[index2 - 1][1]);
+  CRtest = new CornerReflector($V([10, 0, 0]), $V([-1, 0, 0]), $V([-1, 0, Math.sqrt(2)]), 2, 1.5);
+  return leveledLogging(0, Propagate(LightRay3, CRtest));
 });
 
 /*
